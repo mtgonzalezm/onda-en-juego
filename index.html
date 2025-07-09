@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ondas en Juego</title>
+    
+    <!-- Tailwind CSS para un diseño rápido y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Tone.js para la síntesis de audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    
+    <!-- Google Fonts para una tipografía más atractiva -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* Paleta de colores Verde/Naranja */
+        :root {
+            --bg-dark: #015551;
+            --text-light: #FDFBEE;
+            --accent-teal: #57B4BA;
+            --accent-orange: #FE4F2D;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            overflow-x: hidden;
+        }
+        .game-title {
+            font-weight: 700;
+            color: var(--text-light);
+            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+        }
+        .panel {
+            background-color: rgba(87, 180, 186, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem; /* 24px */
+            border: 1px solid rgba(87, 180, 186, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 5px;
+            outline: none;
+            transition: opacity .2s;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            background: var(--accent-orange);
+            cursor: pointer;
+            border-radius: 50%;
+            border: 3px solid var(--text-light);
+            box-shadow: 0 0 10px rgba(254, 79, 45, 0.7);
+        }
+        .btn-style {
+            background-color: var(--accent-teal);
+            border: none;
+            padding: 8px 16px; /* Padding ajustado */
+            color: var(--text-light);
+            font-weight: 600;
+            border-radius: 0.75rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-style:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            filter: brightness(1.1);
+        }
+        .btn-style:active {
+            transform: translateY(0);
+        }
+        .active-mode, .wave-btn.active-mode {
+            background-color: var(--accent-orange);
+            box-shadow: 0 0 15px var(--accent-orange), inset 0 0 5px rgba(255,255,255,0.3);
+        }
+        .btn-inactive {
+             background: rgba(87, 180, 186, 0.25);
+             box-shadow: none;
+        }
+        .btn-inactive:hover {
+            transform: none;
+            box-shadow: none;
+            filter: brightness(1.2);
+        }
+        .playing {
+            box-shadow: 0 0 25px var(--accent-orange);
+            transform: scale(1.05);
+        }
+        canvas {
+            background: transparent;
+        }
+        .value-display {
+            color: var(--accent-teal);
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="flex flex-col md:flex-row h-screen p-4 gap-4">
+
+    <!-- Menú Lateral de Navegación -->
+    <aside class="w-full md:w-1/4 lg:w-1/5 panel flex flex-col justify-between p-6">
+        <div>
+            <h2 class="text-2xl font-bold mb-8 text-center game-title">Modos</h2>
+            <nav>
+                <ul>
+                    <li><button id="mode-create" class="w-full mb-4 btn-style active-mode">Crear</button></li>
+                    <li><button id="mode-guess" class="w-full mb-4 btn-style btn-inactive">Adivinar</button></li>
+                </ul>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Contenido Principal -->
+    <main class="w-full md:w-3/4 lg:w-4/5 flex flex-col gap-4">
+        <header class="text-center p-4 panel flex items-center justify-center relative">
+            <h1 class="text-3xl md:text-4xl game-title">Ondas en Juego</h1>
+            <span id="audio-status" class="text-sm bg-red-500 text-white font-bold py-1 px-2 rounded-md ml-4 absolute right-4 top-1/2 -translate-y-1/2">AUDIO OFF</span>
+        </header>
+
+        <div class="flex-grow flex flex-col gap-4">
+            <!-- Canvas para visualización -->
+            <div class="h-48 md:h-1/3 panel">
+                <canvas id="wave-canvas" class="w-full h-full rounded-lg"></canvas>
+            </div>
+
+            <!-- Contenedor de modos y controles -->
+            <div class="flex-grow panel p-6 flex flex-col">
+                <div id="create-sound-mode" class="flex-grow flex flex-col items-center justify-center text-center">
+                     <h2 class="text-3xl game-title mb-4">Modo Creación</h2>
+                     <p class="text-xl">Usa los controles de abajo para experimentar.</p>
+                </div>
+
+                <div id="guess-wave-mode" class="hidden flex-grow flex-col p-4 items-center justify-around text-center">
+                     <div class="mb-6">
+                        <h2 class="text-3xl game-title mb-2">Adivina la Onda</h2>
+                        <p class="text-xl">Escucha la onda secreta y ajústala.</p>
+                     </div>
+                     <div class="flex items-center gap-8 mb-6">
+                        <button id="new-round-btn" class="btn-style">Nueva Ronda</button>
+                        <button id="listen-target-btn" class="btn-style bg-transparent border-2 border-orange-400 text-orange-400 w-40 h-40 rounded-full flex items-center justify-center text-lg hover:bg-orange-400 hover:text-white transition-all duration-300">Escuchar Secreto</button>
+                        <button id="check-guess-btn" class="btn-style">¡Comprobar!</button>
+                     </div>
+                     <div id="result-display" class="w-full">
+                        <h3 class="text-2xl font-bold">Puntuación: <span id="score" class="text-orange-400">0</span></h3>
+                        <p id="feedback-text" class="mt-2 text-xl min-h-[2.5rem]"></p>
+                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controles (siempre visibles) -->
+        <div id="controls" class="panel p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-xl">
+            <div>
+                <label for="frequency" class="font-bold block mb-2">FRECUENCIA</label>
+                <input type="range" id="frequency" min="20" max="2000" value="440" class="w-full">
+                <span id="freq-value" class="text-2xl value-display mt-2 inline-block">440 Hz</span>
+            </div>
+            <div>
+                <label for="amplitude" class="font-bold block mb-2">AMPLITUD</label>
+                <input type="range" id="amplitude" min="0" max="1" value="0.5" step="0.01" class="w-full">
+                <span id="amp-value" class="text-2xl value-display mt-2 inline-block">0.50</span>
+            </div>
+            <div>
+                <label for="phase" class="font-bold block mb-2">FASE</label>
+                <input type="range" id="phase" min="0" max="360" value="0" class="w-full">
+                <span id="phase-value" class="text-2xl value-display mt-2 inline-block">0°</span>
+            </div>
+            <!-- Contenedor de botones de onda corregido -->
+            <div class="flex flex-col items-stretch">
+                 <label class="font-bold block mb-2 text-center">FORMA DE ONDA</label>
+                 <div class="flex flex-col gap-2 w-full">
+                     <button data-wave="sine" class="wave-btn btn-style active-mode text-base">Seno</button>
+                     <button data-wave="square" class="wave-btn btn-style btn-inactive text-base">Cuadrada</button>
+                     <button data-wave="triangle" class="wave-btn btn-style btn-inactive text-base">Triangular</button>
+                     <button data-wave="sawtooth" class="wave-btn btn-style btn-inactive text-base">Sierra</button>
+                 </div>
+            </div>
+        </div>
+    </main>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- INICIALIZACIÓN ---
+            let audioContextStarted = false;
+            let userOsc;
+
+            // --- ELEMENTOS DEL DOM ---
+            const canvas = document.getElementById('wave-canvas');
+            const ctx = canvas.getContext('2d');
+            const frequencySlider = document.getElementById('frequency');
+            const amplitudeSlider = document.getElementById('amplitude');
+            const phaseSlider = document.getElementById('phase');
+            const waveButtons = document.querySelectorAll('.wave-btn');
+            const freqValueDisplay = document.getElementById('freq-value');
+            const ampValueDisplay = document.getElementById('amp-value');
+            const phaseValueDisplay = document.getElementById('phase-value');
+            const audioStatusEl = document.getElementById('audio-status');
+            
+            const modeButtons = {
+                create: document.getElementById('mode-create'),
+                guess: document.getElementById('mode-guess'),
+            };
+            const modeViews = {
+                create: document.getElementById('create-sound-mode'),
+                guess: document.getElementById('guess-wave-mode'),
+            };
+
+            const newRoundBtn = document.getElementById('new-round-btn');
+            const listenTargetBtn = document.getElementById('listen-target-btn');
+            const checkGuessBtn = document.getElementById('check-guess-btn');
+            const scoreDisplay = document.getElementById('score');
+            const feedbackText = document.getElementById('feedback-text');
+
+            // --- ESTADO ---
+            let userWaveState = { frequency: 440, amplitude: 0.5, phase: 0, type: 'sine' };
+            let targetWaveState = { frequency: 440, type: 'sine' };
+            const waveTypes = ['sine', 'square', 'triangle', 'sawtooth'];
+
+            // --- LÓGICA DE AUDIO (TONE.JS) ---
+            async function ensureAudioIsReady() {
+                if (audioContextStarted) return;
+                await Tone.start();
+                userOsc = new Tone.Oscillator({
+                    frequency: userWaveState.frequency,
+                    type: userWaveState.type,
+                    volume: Tone.gainToDb(userWaveState.amplitude)
+                }).toDestination().start();
+                audioContextStarted = true;
+                audioStatusEl.style.display = 'none';
+                console.log('Audio context started and ready.');
+            }
+
+            // --- LÓGICA DE DIBUJO EN CANVAS ---
+            function resizeCanvas() {
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+            }
+
+            function drawWave() {
+                requestAnimationFrame(drawWave);
+                if (!ctx) return;
+
+                const width = canvas.width;
+                const height = canvas.height;
+                const centerY = height / 2;
+
+                ctx.clearRect(0, 0, width, height);
+                ctx.strokeStyle = 'rgba(253, 251, 238, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(0, centerY);
+                ctx.lineTo(width, centerY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.strokeStyle = '#FE4F2D';
+                ctx.lineWidth = 4;
+                ctx.shadowColor = '#FE4F2D';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+
+                const phaseRad = (userWaveState.phase * Math.PI) / 180;
+                const visualFrequency = Math.pow(userWaveState.frequency / 440, 0.5) * 4;
+
+                for (let x = 0; x < width; x++) {
+                    const angle = (x / width) * Math.PI * 2 * visualFrequency + phaseRad;
+                    let y;
+                    switch (userWaveState.type) {
+                        case 'sine': y = Math.sin(angle); break;
+                        case 'square': y = Math.sign(Math.sin(angle)); break;
+                        case 'triangle': y = Math.asin(Math.sin(angle)) * (2 / Math.PI); break;
+                        case 'sawtooth': y = (angle / Math.PI) % 2 - 1; break;
+                    }
+                    const finalY = centerY - y * (height / 2.5) * userWaveState.amplitude;
+                    if (x === 0) ctx.moveTo(x, finalY);
+                    else ctx.lineTo(x, finalY);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+            
+            // --- MANEJADORES DE EVENTOS ---
+            async function updateUserSoundAndVisuals() {
+                await ensureAudioIsReady();
+                userWaveState.frequency = parseFloat(frequencySlider.value);
+                userWaveState.amplitude = parseFloat(amplitudeSlider.value);
+                userWaveState.phase = parseInt(phaseSlider.value);
+
+                freqValueDisplay.textContent = `${userWaveState.frequency.toFixed(0)} Hz`;
+                ampValueDisplay.textContent = userWaveState.amplitude.toFixed(2);
+                phaseValueDisplay.textContent = `${userWaveState.phase}°`;
+
+                if (userOsc) {
+                    userOsc.frequency.rampTo(userWaveState.frequency, 0.05);
+                    userOsc.volume.rampTo(Tone.gainToDb(userWaveState.amplitude), 0.05);
+                }
+            }
+
+            frequencySlider.addEventListener('input', updateUserSoundAndVisuals);
+            amplitudeSlider.addEventListener('input', updateUserSoundAndVisuals);
+            phaseSlider.addEventListener('input', updateUserSoundAndVisuals);
+
+            waveButtons.forEach(button => {
+                button.addEventListener('click', async () => {
+                    await ensureAudioIsReady();
+                    userWaveState.type = button.dataset.wave;
+                    if (userOsc) userOsc.type = userWaveState.type;
+                    waveButtons.forEach(btn => {
+                        btn.classList.remove('active-mode');
+                        btn.classList.add('btn-inactive');
+                    });
+                    button.classList.add('active-mode');
+                    button.classList.remove('btn-inactive');
+                });
+            });
+
+            // --- LÓGICA DEL JUEGO "ADIVINA LA ONDA" ---
+            newRoundBtn.addEventListener('click', startNewRound);
+            function startNewRound() {
+                targetWaveState.type = waveTypes[Math.floor(Math.random() * waveTypes.length)];
+                targetWaveState.frequency = Math.floor(Math.random() * (1000 - 100 + 1) + 100);
+                console.log("Onda secreta:", targetWaveState);
+                scoreDisplay.textContent = "0";
+                feedbackText.textContent = "¡Nueva ronda! Escucha y ajusta tu onda.";
+                feedbackText.style.color = 'var(--text-light)';
+            }
+
+            listenTargetBtn.addEventListener('click', async () => {
+                await ensureAudioIsReady();
+
+                if (userOsc) userOsc.volume.value = -Infinity;
+                listenTargetBtn.classList.add('playing');
+
+                const tempOsc = new Tone.Oscillator(targetWaveState.frequency, targetWaveState.type).toDestination();
+                tempOsc.start().stop("+1");
+
+                setTimeout(() => {
+                    if (userOsc) {
+                        userOsc.volume.value = Tone.gainToDb(userWaveState.amplitude);
+                    }
+                    listenTargetBtn.classList.remove('playing');
+                }, 1000);
+            });
+
+            checkGuessBtn.addEventListener('click', async () => {
+                await ensureAudioIsReady();
+                
+                let roundScore = 0;
+                let typeFeedback = "";
+                let freqFeedback = "";
+
+                if (userWaveState.type === targetWaveState.type) {
+                    roundScore += 3;
+                    typeFeedback = "Forma CORRECTA (+3). ";
+                } else {
+                    typeFeedback = "Forma INCORRECTA. ";
+                }
+
+                const freqDifference = Math.abs(userWaveState.frequency - targetWaveState.frequency);
+                let freqScore = 0;
+                if (freqDifference <= 10) {
+                    freqScore = 7;
+                    freqFeedback = "¡Frecuencia PERFECTA! (+7)";
+                } else if (freqDifference <= 50) {
+                    freqScore = 5;
+                    freqFeedback = "Frecuencia MUY CERCANA (+5).";
+                } else if (freqDifference <= 150) {
+                    freqScore = 2;
+                    freqFeedback = "Frecuencia ALGO CERCANA (+2).";
+                } else {
+                    freqFeedback = userWaveState.frequency > targetWaveState.frequency ? "Frecuencia DEMASIADO ALTA." : "Frecuencia DEMASIADO BAJA.";
+                }
+                
+                roundScore += freqScore;
+                scoreDisplay.textContent = roundScore;
+                
+                let finalFeedback = typeFeedback + freqFeedback;
+
+                if (roundScore === 10) {
+                    feedbackText.style.color = 'var(--accent-teal)';
+                    feedbackText.textContent = `¡PERFECTO! Puntuación: 10/10`;
+                } else {
+                    feedbackText.style.color = 'var(--accent-orange)';
+                    feedbackText.textContent = finalFeedback;
+                }
+            });
+
+            // --- NAVEGACIÓN ENTRE MODOS ---
+            function switchMode(mode) {
+                Object.values(modeViews).forEach(v => v.classList.add('hidden'));
+                Object.values(modeButtons).forEach(b => {
+                    b.classList.remove('active-mode');
+                    b.classList.add('btn-inactive');
+                });
+                
+                modeViews[mode].classList.remove('hidden');
+                modeButtons[mode].classList.remove('btn-inactive');
+                modeButtons[mode].classList.add('active-mode');
+
+                if (mode === 'guess') startNewRound();
+            }
+            
+            Object.keys(modeButtons).forEach(key => {
+                modeButtons[key].addEventListener('click', () => switchMode(key));
+            });
+
+            // --- INICIO ---
+            window.addEventListener('resize', resizeCanvas);
+            
+            resizeCanvas();
+            drawWave();
+            switchMode('create');
+        });
+    </script>
+</body>
+</html>
